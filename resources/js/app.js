@@ -24,45 +24,57 @@ controls.minDistance = 6.8;
 controls.maxDistance = 18;
 controls.target.set(0, 0, 0);
 
-const curlPoints = [];
-for (let index = 0; index <= 48; index += 1) {
-    const t = index / 48;
-    const angle = THREE.MathUtils.lerp(-2.45, 2.45, t);
-    const radius = 3.25 - 0.6 * Math.cos(t * Math.PI * 2);
-    curlPoints.push(new THREE.Vector3(
-        Math.sin(angle) * radius,
-        Math.cos(angle) * radius * 0.86,
-        Math.sin(t * Math.PI * 3) * 0.58 + Math.cos(angle * 2) * 0.2,
-    ));
-}
-
-const curlPath = new THREE.CatmullRomCurve3(curlPoints, false, 'centripetal');
-const curlGeometry = new THREE.TubeGeometry(curlPath, 240, 0.74, 16, false);
-const position = curlGeometry.attributes.position;
-const normals = curlGeometry.attributes.normal;
-const normal = new THREE.Vector3();
-const vertex = new THREE.Vector3();
-
-// Small, deterministic distortions break the perfectly manufactured tube silhouette.
-for (let index = 0; index < position.count; index += 1) {
-    vertex.fromBufferAttribute(position, index);
-    normal.fromBufferAttribute(normals, index);
-    const grain =
-        Math.sin(vertex.x * 7.3 + vertex.y * 4.1) * 0.055 +
-        Math.cos(vertex.y * 9.7 - vertex.z * 5.4) * 0.035 +
-        Math.sin(vertex.z * 12.2 + vertex.x * 3.8) * 0.025;
-    vertex.addScaledVector(normal, grain);
-    position.setXYZ(index, vertex.x, vertex.y, vertex.z);
-}
-position.needsUpdate = true;
-curlGeometry.computeVertexNormals();
-
 const curlMaterial = new THREE.MeshStandardMaterial({
     color: 0xff6c08,
     roughness: 0.92,
     metalness: 0,
 });
-const curl = new THREE.Mesh(curlGeometry, curlMaterial);
+const curl = new THREE.Group();
+
+// A single, gently crooked curl reads more like a snack than a near-closed ring.
+const curlPath = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-3.25, -0.18, -0.12),
+    new THREE.Vector3(-2.75, 0.55, 0.02),
+    new THREE.Vector3(-1.72, 0.91, 0.18),
+    new THREE.Vector3(-0.72, 0.78, 0.06),
+    new THREE.Vector3(0.05, 0.25, -0.2),
+    new THREE.Vector3(0.92, 0.04, -0.08),
+    new THREE.Vector3(1.8, 0.39, 0.22),
+    new THREE.Vector3(2.72, 0.8, 0.1),
+    new THREE.Vector3(3.3, 0.57, -0.08),
+], false, 'centripetal');
+
+const snackRadius = 0.68;
+const curlGeometry = new THREE.TubeGeometry(curlPath, 200, snackRadius, 24, false);
+const positions = curlGeometry.attributes.position;
+const normals = curlGeometry.attributes.normal;
+const normal = new THREE.Vector3();
+const vertex = new THREE.Vector3();
+
+// Subtle surface waviness gives the extrusion an irregular, crunchy silhouette.
+for (let index = 0; index < positions.count; index += 1) {
+    vertex.fromBufferAttribute(positions, index);
+    normal.fromBufferAttribute(normals, index);
+    const grain =
+        Math.sin(vertex.x * 8.1 + vertex.y * 5.2 + vertex.z * 3.1) * 0.045 +
+        Math.cos(vertex.y * 10.4 - vertex.z * 6.8) * 0.03 +
+        Math.sin(vertex.z * 13.2 + vertex.x * 4.6) * 0.022;
+    vertex.addScaledVector(normal, grain);
+    positions.setXYZ(index, vertex.x, vertex.y, vertex.z);
+}
+positions.needsUpdate = true;
+curlGeometry.computeVertexNormals();
+
+curl.add(new THREE.Mesh(curlGeometry, curlMaterial));
+
+// Round caps close the tube while keeping each tip soft and snack-like.
+const capGeometry = new THREE.SphereGeometry(snackRadius, 24, 16);
+for (const endpoint of [0, 1]) {
+    const cap = new THREE.Mesh(capGeometry, curlMaterial);
+    cap.position.copy(curlPath.getPointAt(endpoint));
+    curl.add(cap);
+}
+
 curl.rotation.set(-0.11, -0.35, 0.12);
 scene.add(curl);
 
